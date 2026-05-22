@@ -2,6 +2,7 @@ fastapi==0.115.5
 uvicorn[standard]==0.32.1
 python-multipart==0.0.20
 pydub==0.25.1
+pyaudioop==0.2.1
 elevenlabs==2.49.0
 python-dotenv==1.0.1
 Pillow==11.0.0
