@@ -8,8 +8,8 @@ import requests
 from PIL import Image
 
 MAX_DIMENSION = 1568
-GEMINI_MODEL = "gemini-1.5-flash"
-GEMINI_URL = f"https://generativelanguage.googleapis.com/v1/models/{GEMINI_MODEL}:generateContent"
+GEMINI_MODEL = "gemini-2.0-flash-lite"
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 
 ANALYSIS_PROMPT = """Analyze this image carefully for the purpose of generating an inspired music track. Return ONLY a valid JSON object with these exact keys:
 
