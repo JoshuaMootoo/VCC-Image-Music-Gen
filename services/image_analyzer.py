@@ -71,6 +71,8 @@ def analyze_image(image_bytes: bytes, media_type: str) -> dict:
         json=payload,
         timeout=30,
     )
+    if not response.ok:
+        raise RuntimeError(f"Groq error {response.status_code}: {response.text}")
     response.raise_for_status()
 
     content = response.json()["choices"][0]["message"]["content"].strip()
