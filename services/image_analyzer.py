@@ -8,7 +8,7 @@ from PIL import Image
 
 MAX_DIMENSION = 1568
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "llama-3.2-11b-vision-preview"
+GROQ_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
 
 ANALYSIS_PROMPT = """Analyze this image carefully for the purpose of generating an inspired music track. Return ONLY a valid JSON object with these exact keys:
 
