@@ -3,6 +3,7 @@ import io
 import json
 import os
 import re
+import time
 
 import requests
 from PIL import Image
@@ -65,13 +66,22 @@ def analyze_image(image_bytes: bytes, media_type: str) -> dict:
         }]
     }
 
-    response = requests.post(
-        GEMINI_URL,
-        headers={"x-goog-api-key": os.environ["GOOGLE_API_KEY"]},
-        json=payload,
-        timeout=30,
-    )
-    response.raise_for_status()
+    for attempt in range(4):
+        response = requests.post(
+            GEMINI_URL,
+            headers={"x-goog-api-key": os.environ["GOOGLE_API_KEY"]},
+            json=payload,
+            timeout=30,
+        )
+        if response.status_code == 429:
+            wait = 2 ** attempt * 15
+            print(f"[image_analyzer] 429 rate limit, retrying in {wait}s... ({response.text})")
+            time.sleep(wait)
+            continue
+        response.raise_for_status()
+        break
+    else:
+        raise RuntimeError(f"Gemini rate limit after 4 attempts: {response.text}")
 
     content = response.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
     json_match = re.search(r"\{.*\}", content, re.DOTALL)
