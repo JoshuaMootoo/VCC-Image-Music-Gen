@@ -1,4 +1,6 @@
 import os
+import subprocess
+import tempfile
 import uuid
 from pathlib import Path
 
@@ -6,7 +8,6 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydub import AudioSegment
 
 load_dotenv()
 
@@ -27,23 +28,27 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 def _mix_tracks(music_bytes: bytes, voice_bytes: bytes) -> bytes:
-    import io
-    music = AudioSegment.from_mp3(io.BytesIO(music_bytes))
-    voice = AudioSegment.from_mp3(io.BytesIO(voice_bytes))
+    with tempfile.TemporaryDirectory() as tmp:
+        music_path = os.path.join(tmp, "music.mp3")
+        voice_path = os.path.join(tmp, "voice.mp3")
+        out_path = os.path.join(tmp, "mixed.mp3")
 
-    # Loop music to cover the full vocal length if needed
-    if len(music) < len(voice):
-        loops = -(-len(voice) // len(music))  # ceiling division
-        music = music * loops
-    music = music[:len(voice)]
+        with open(music_path, "wb") as f:
+            f.write(music_bytes)
+        with open(voice_path, "wb") as f:
+            f.write(voice_bytes)
 
-    # Lower music volume so vocals sit on top
-    music = music - 6
+        # Loop music to match vocal length, duck it by 6dB, then mix
+        subprocess.run([
+            "ffmpeg", "-y",
+            "-stream_loop", "-1", "-i", music_path,
+            "-i", voice_path,
+            "-filter_complex", "[0]volume=0.5[bg];[bg][1]amix=inputs=2:duration=shortest",
+            "-b:a", "128k",
+            out_path,
+        ], check=True, capture_output=True)
 
-    mixed = music.overlay(voice)
-    buf = io.BytesIO()
-    mixed.export(buf, format="mp3", bitrate="128k")
-    return buf.getvalue()
+        return Path(out_path).read_bytes()
 
 
 @app.get("/")
