@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pydub import AudioSegment
 
 load_dotenv()
 
@@ -23,6 +24,26 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+def _mix_tracks(music_bytes: bytes, voice_bytes: bytes) -> bytes:
+    import io
+    music = AudioSegment.from_mp3(io.BytesIO(music_bytes))
+    voice = AudioSegment.from_mp3(io.BytesIO(voice_bytes))
+
+    # Loop music to cover the full vocal length if needed
+    if len(music) < len(voice):
+        loops = -(-len(voice) // len(music))  # ceiling division
+        music = music * loops
+    music = music[:len(voice)]
+
+    # Lower music volume so vocals sit on top
+    music = music - 6
+
+    mixed = music.overlay(voice)
+    buf = io.BytesIO()
+    mixed.export(buf, format="mp3", bitrate="128k")
+    return buf.getvalue()
 
 
 @app.get("/")
@@ -54,25 +75,26 @@ async def generate(file: UploadFile = File(...)):
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Music generation failed: {exc}")
 
-    music_path = OUTPUTS_DIR / f"{session_id}_music.mp3"
-    music_path.write_bytes(music_bytes)
-
-    result = {
-        "analysis": analysis,
-        "music_url": f"/outputs/{session_id}_music.mp3",
-        "voice_url": None,
-    }
+    result = {"analysis": analysis, "track_url": None}
 
     if analysis.get("has_people") and analysis.get("lyrics"):
         voice_type = analysis.get("suggested_voice_type", "narrator")
         try:
             voice_bytes = generate_voice(analysis["lyrics"], voice_type, analysis.get("music_style", ""))
-            voice_path = OUTPUTS_DIR / f"{session_id}_voice.mp3"
-            voice_path.write_bytes(voice_bytes)
-            result["voice_url"] = f"/outputs/{session_id}_voice.mp3"
+            mixed_bytes = _mix_tracks(music_bytes, voice_bytes)
+            track_path = OUTPUTS_DIR / f"{session_id}_track.mp3"
+            track_path.write_bytes(mixed_bytes)
+            result["track_url"] = f"/outputs/{session_id}_track.mp3"
         except Exception as exc:
-            # Non-fatal — music is still available
+            # Fall back to music only
             result["voice_error"] = str(exc)
+            track_path = OUTPUTS_DIR / f"{session_id}_track.mp3"
+            track_path.write_bytes(music_bytes)
+            result["track_url"] = f"/outputs/{session_id}_track.mp3"
+    else:
+        track_path = OUTPUTS_DIR / f"{session_id}_track.mp3"
+        track_path.write_bytes(music_bytes)
+        result["track_url"] = f"/outputs/{session_id}_track.mp3"
 
     return JSONResponse(result)
 

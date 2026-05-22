@@ -355,24 +355,12 @@
       <div class="result-card-header">
         <div class="result-icon music-icon">🎵</div>
         <div>
-          <h3>Music Track</h3>
+          <h3>Generated Track</h3>
           <p id="musicSubtitle">Generated from your image</p>
         </div>
       </div>
       <audio id="musicPlayer" controls preload="none"></audio>
-    </div>
-
-    <!-- Voice player (shown only if vocals generated) -->
-    <div class="result-card hidden" id="voiceCard">
-      <div class="result-card-header">
-        <div class="result-icon voice-icon">🎤</div>
-        <div>
-          <h3>Vocal Track</h3>
-          <p id="voiceSubtitle">Lyrics inspired by the people in your image</p>
-        </div>
-      </div>
-      <audio id="voicePlayer" controls preload="none"></audio>
-      <div class="lyrics-box" id="lyricsBox"></div>
+      <div class="lyrics-box hidden" id="lyricsBox"></div>
     </div>
 
   </div>
@@ -388,7 +376,6 @@
   const loadingSection = document.getElementById('loadingSection');
   const errorBox = document.getElementById('errorBox');
   const resultsSection = document.getElementById('resultsSection');
-  const voiceCard = document.getElementById('voiceCard');
 
   let selectedFile = null;
   let analysisData = null;
@@ -511,20 +498,17 @@
       tagsEl.prepend(moodSpan);
     }
 
-    // Music player
-    document.getElementById('musicPlayer').src = data.music_url;
+    // Combined track player
+    document.getElementById('musicPlayer').src = data.track_url;
     document.getElementById('musicSubtitle').textContent =
       a.music_style ? `${a.music_style} · ${a.music_instruments?.join(', ') || ''}` : 'Generated from your image';
 
-    // Voice player
-    if (data.voice_url && a.lyrics) {
-      document.getElementById('voicePlayer').src = data.voice_url;
+    // Lyrics (shown if vocals were generated)
+    if (a.lyrics) {
       document.getElementById('lyricsBox').textContent = a.lyrics;
-      document.getElementById('voiceSubtitle').textContent =
-        `Voice: ${a.suggested_voice_type || 'narrator'} · ${a.people_count || 1} person${(a.people_count || 1) !== 1 ? 's' : ''} detected`;
-      voiceCard.classList.remove('hidden');
+      document.getElementById('lyricsBox').classList.remove('hidden');
     } else {
-      voiceCard.classList.add('hidden');
+      document.getElementById('lyricsBox').classList.add('hidden');
     }
 
     resultsSection.classList.remove('hidden');
