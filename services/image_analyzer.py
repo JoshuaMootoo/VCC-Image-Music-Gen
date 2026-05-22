@@ -52,7 +52,7 @@ def analyze_image(image_bytes: bytes, media_type: str) -> dict:
     image_bytes, media_type = _resize_image(image_bytes, media_type)
 
     genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-2.0-flash")
 
     image_part = {"mime_type": media_type, "data": base64.standard_b64encode(image_bytes).decode("utf-8")}
     response = model.generate_content([ANALYSIS_PROMPT, image_part])
