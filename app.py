@@ -66,7 +66,7 @@ async def generate(file: UploadFile = File(...)):
     if analysis.get("has_people") and analysis.get("lyrics"):
         voice_type = analysis.get("suggested_voice_type", "narrator")
         try:
-            voice_bytes = generate_voice(analysis["lyrics"], voice_type)
+            voice_bytes = generate_voice(analysis["lyrics"], voice_type, analysis.get("music_style", ""))
             voice_path = OUTPUTS_DIR / f"{session_id}_voice.mp3"
             voice_path.write_bytes(voice_bytes)
             result["voice_url"] = f"/outputs/{session_id}_voice.mp3"
