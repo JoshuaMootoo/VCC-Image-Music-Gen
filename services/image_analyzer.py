@@ -3,14 +3,12 @@ import io
 import json
 import os
 import re
-import time
-
 import requests
 from PIL import Image
 
 MAX_DIMENSION = 1568
-GEMINI_MODEL = "gemini-2.0-flash-lite"
-GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL = "llama-3.2-11b-vision-preview"
 
 ANALYSIS_PROMPT = """Analyze this image carefully for the purpose of generating an inspired music track. Return ONLY a valid JSON object with these exact keys:
 
@@ -53,37 +51,29 @@ def _resize_image(image_bytes: bytes, media_type: str) -> tuple[bytes, str]:
 
 def analyze_image(image_bytes: bytes, media_type: str) -> dict:
     image_bytes, media_type = _resize_image(image_bytes, media_type)
+    b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
 
     payload = {
-        "contents": [{
-            "parts": [
-                {"text": ANALYSIS_PROMPT},
-                {"inline_data": {
-                    "mime_type": media_type,
-                    "data": base64.standard_b64encode(image_bytes).decode("utf-8"),
-                }},
-            ]
-        }]
+        "model": GROQ_MODEL,
+        "messages": [{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": ANALYSIS_PROMPT},
+                {"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{b64}"}},
+            ],
+        }],
+        "max_tokens": 1500,
     }
 
-    for attempt in range(4):
-        response = requests.post(
-            GEMINI_URL,
-            headers={"x-goog-api-key": os.environ["GOOGLE_API_KEY"]},
-            json=payload,
-            timeout=30,
-        )
-        if response.status_code == 429:
-            wait = 2 ** attempt * 15
-            print(f"[image_analyzer] 429 rate limit, retrying in {wait}s... ({response.text})")
-            time.sleep(wait)
-            continue
-        response.raise_for_status()
-        break
-    else:
-        raise RuntimeError(f"Gemini rate limit after 4 attempts: {response.text}")
+    response = requests.post(
+        GROQ_URL,
+        headers={"Authorization": f"Bearer {os.environ['GROQ_API_KEY']}"},
+        json=payload,
+        timeout=30,
+    )
+    response.raise_for_status()
 
-    content = response.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+    content = response.json()["choices"][0]["message"]["content"].strip()
     json_match = re.search(r"\{.*\}", content, re.DOTALL)
     if json_match:
         return json.loads(json_match.group())
