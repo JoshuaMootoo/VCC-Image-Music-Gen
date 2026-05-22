@@ -1,11 +1,13 @@
-import anthropic
 import base64
 import io
 import json
+import os
 import re
+
+import google.generativeai as genai
 from PIL import Image
 
-MAX_DIMENSION = 1568  # Anthropic recommended max for vision
+MAX_DIMENSION = 1568
 
 ANALYSIS_PROMPT = """Analyze this image carefully for the purpose of generating an inspired music track. Return ONLY a valid JSON object with these exact keys:
 
@@ -48,31 +50,14 @@ def _resize_image(image_bytes: bytes, media_type: str) -> tuple[bytes, str]:
 
 def analyze_image(image_bytes: bytes, media_type: str) -> dict:
     image_bytes, media_type = _resize_image(image_bytes, media_type)
-    image_data = base64.standard_b64encode(image_bytes).decode("utf-8")
 
-    client = anthropic.Anthropic()
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1500,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": image_data,
-                        },
-                    },
-                    {"type": "text", "text": ANALYSIS_PROMPT},
-                ],
-            }
-        ],
-    )
+    genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
+    model = genai.GenerativeModel("gemini-1.5-flash")
 
-    content = response.content[0].text.strip()
+    image_part = {"mime_type": media_type, "data": base64.standard_b64encode(image_bytes).decode("utf-8")}
+    response = model.generate_content([ANALYSIS_PROMPT, image_part])
+
+    content = response.text.strip()
     json_match = re.search(r"\{.*\}", content, re.DOTALL)
     if json_match:
         return json.loads(json_match.group())
