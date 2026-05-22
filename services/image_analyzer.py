@@ -4,10 +4,12 @@ import json
 import os
 import re
 
-import google.generativeai as genai
+import requests
 from PIL import Image
 
 MAX_DIMENSION = 1568
+GEMINI_MODEL = "gemini-1.5-flash"
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1/models/{GEMINI_MODEL}:generateContent"
 
 ANALYSIS_PROMPT = """Analyze this image carefully for the purpose of generating an inspired music track. Return ONLY a valid JSON object with these exact keys:
 
@@ -51,13 +53,27 @@ def _resize_image(image_bytes: bytes, media_type: str) -> tuple[bytes, str]:
 def analyze_image(image_bytes: bytes, media_type: str) -> dict:
     image_bytes, media_type = _resize_image(image_bytes, media_type)
 
-    genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
-    model = genai.GenerativeModel("gemini-2.0-flash")
+    payload = {
+        "contents": [{
+            "parts": [
+                {"text": ANALYSIS_PROMPT},
+                {"inline_data": {
+                    "mime_type": media_type,
+                    "data": base64.standard_b64encode(image_bytes).decode("utf-8"),
+                }},
+            ]
+        }]
+    }
 
-    image_part = {"mime_type": media_type, "data": base64.standard_b64encode(image_bytes).decode("utf-8")}
-    response = model.generate_content([ANALYSIS_PROMPT, image_part])
+    response = requests.post(
+        GEMINI_URL,
+        headers={"x-goog-api-key": os.environ["GOOGLE_API_KEY"]},
+        json=payload,
+        timeout=30,
+    )
+    response.raise_for_status()
 
-    content = response.text.strip()
+    content = response.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
     json_match = re.search(r"\{.*\}", content, re.DOTALL)
     if json_match:
         return json.loads(json_match.group())
