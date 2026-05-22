@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Image Music Generator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #08080f;
+      --surface: #111120;
+      --surface2: #1a1a2e;
+      --border: rgba(124,58,237,0.25);
+      --accent: #7c3aed;
+      --accent2: #a855f7;
+      --accent3: #ec4899;
+      --text: #e8e8f0;
+      --muted: #888899;
+      --radius: 16px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px 80px;
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+    .header h1 {
+      font-size: clamp(2rem, 5vw, 3rem);
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent2), var(--accent3));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -0.5px;
+    }
+    .header p {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 1rem;
+    }
+
+    /* Upload zone */
+    .upload-card {
+      width: 100%;
+      max-width: 700px;
+      background: var(--surface);
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 56px 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+    }
+    .upload-card.drag-over {
+      border-color: var(--accent2);
+      background: rgba(124,58,237,0.07);
+    }
+    .upload-card input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .upload-icon {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 20px;
+      background: linear-gradient(135deg, var(--accent), var(--accent3));
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .upload-icon svg { width: 28px; height: 28px; fill: #fff; }
+    .upload-card h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: 8px; }
+    .upload-card p { color: var(--muted); font-size: 0.9rem; }
+    .upload-hint {
+      display: inline-block;
+      margin-top: 16px;
+      font-size: 0.8rem;
+      color: var(--accent2);
+      background: rgba(124,58,237,0.12);
+      padding: 4px 12px;
+      border-radius: 999px;
+    }
+
+    /* Main content area */
+    .main { width: 100%; max-width: 700px; }
+
+    /* Preview + analysis row */
+    .preview-row {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 20px;
+      margin-top: 28px;
+    }
+    @media (max-width: 560px) { .preview-row { grid-template-columns: 1fr; } }
+
+    .preview-img {
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: cover;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+    }
+
+    .analysis-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .analysis-row { display: flex; flex-direction: column; gap: 4px; }
+    .analysis-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+    .analysis-value { font-size: 0.92rem; color: var(--text); line-height: 1.4; }
+
+    .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tag {
+      font-size: 0.78rem;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: rgba(124,58,237,0.15);
+      border: 1px solid rgba(124,58,237,0.3);
+      color: var(--accent2);
+    }
+    .mood-tag {
+      background: rgba(236,72,153,0.12);
+      border-color: rgba(236,72,153,0.3);
+      color: #f472b6;
+    }
+
+    /* Generate button */
+    .generate-btn {
+      margin-top: 24px;
+      width: 100%;
+      padding: 16px;
+      font-size: 1rem;
+      font-weight: 700;
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent), var(--accent3));
+      border: none;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      letter-spacing: 0.02em;
+    }
+    .generate-btn:hover { opacity: 0.9; }
+    .generate-btn:active { transform: scale(0.99); }
+    .generate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Loading */
+    .loading-section {
+      margin-top: 28px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 36px 24px;
+      text-align: center;
+    }
+    .spinner {
+      width: 48px; height: 48px;
+      border: 3px solid rgba(124,58,237,0.2);
+      border-top-color: var(--accent2);
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+      margin: 0 auto 20px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-steps { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+    .step {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.88rem;
+      color: var(--muted);
+      transition: color 0.3s;
+    }
+    .step.active { color: var(--accent2); }
+    .step.done { color: #4ade80; }
+    .step-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      flex-shrink: 0;
+    }
+
+    /* Results */
+    .results-section { margin-top: 28px; display: flex; flex-direction: column; gap: 16px; }
+
+    .result-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px 24px;
+    }
+    .result-card-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .result-icon {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+    .music-icon { background: linear-gradient(135deg, #4f46e5, #7c3aed); }
+    .voice-icon { background: linear-gradient(135deg, #be185d, #ec4899); }
+    .result-card-header h3 { font-size: 1rem; font-weight: 700; }
+    .result-card-header p { font-size: 0.82rem; color: var(--muted); margin-top: 2px; }
+
+    audio {
+      width: 100%;
+      accent-color: var(--accent2);
+      filter: invert(1) hue-rotate(180deg) brightness(0.85);
+    }
+
+    .lyrics-box {
+      margin-top: 14px;
+      background: var(--surface2);
+      border-left: 3px solid var(--accent3);
+      border-radius: 0 8px 8px 0;
+      padding: 14px 16px;
+      font-style: italic;
+      font-size: 0.92rem;
+      line-height: 1.7;
+      color: #c4b5fd;
+    }
+
+    /* Error */
+    .error-box {
+      margin-top: 20px;
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      color: #fca5a5;
+      font-size: 0.9rem;
+    }
+
+    /* Divider */
+    .scene-desc {
+      margin-top: 8px;
+      padding: 14px 16px;
+      background: var(--surface2);
+      border-radius: 10px;
+      font-size: 0.9rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .hidden { display: none !important; }
+
+    /* Responsive */
+    @media (max-width: 480px) {
+      body { padding: 24px 16px 60px; }
+      .upload-card { padding: 40px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <h1>Image Music Generator</h1>
+  <p>Upload an image — AI analyses it and composes a unique musical track.</p>
+</header>
+
+<div class="main">
+
+  <!-- Upload zone -->
+  <div class="upload-card" id="uploadCard">
+    <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp,image/gif" />
+    <div class="upload-icon">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+      </svg>
+    </div>
+    <h2>Drop your image here</h2>
+    <p>or click to browse files</p>
+    <span class="upload-hint">JPEG · PNG · WebP · GIF · max 10 MB</span>
+  </div>
+
+  <!-- Preview + analysis -->
+  <div id="previewSection" class="hidden">
+    <div class="preview-row">
+      <img id="previewImg" class="preview-img" alt="Preview" />
+      <div class="analysis-card" id="analysisCard">
+        <div class="analysis-row">
+          <span class="analysis-label">Mood</span>
+          <span class="analysis-value" id="aMood">—</span>
+        </div>
+        <div class="analysis-row">
+          <span class="analysis-label">Atmosphere</span>
+          <span class="analysis-value" id="aAtmosphere">—</span>
+        </div>
+        <div class="analysis-row">
+          <span class="analysis-label">Music Style</span>
+          <span class="analysis-value" id="aMusicStyle">—</span>
+        </div>
+        <div class="analysis-row">
+          <span class="analysis-label">Objects Detected</span>
+          <div class="tags" id="aTags"></div>
+        </div>
+      </div>
+    </div>
+    <div class="scene-desc" id="aScene"></div>
+    <button class="generate-btn" id="generateBtn">Generate Music Track</button>
+  </div>
+
+  <!-- Loading -->
+  <div id="loadingSection" class="loading-section hidden">
+    <div class="spinner"></div>
+    <div style="font-weight:600;font-size:1rem;">Composing your track&hellip;</div>
+    <div class="loading-steps">
+      <div class="step" id="step1"><div class="step-dot"></div>Analysing image with Claude Vision</div>
+      <div class="step" id="step2"><div class="step-dot"></div>Crafting music prompt</div>
+      <div class="step" id="step3"><div class="step-dot"></div>Generating music with ElevenLabs</div>
+      <div class="step" id="step4"><div class="step-dot"></div>Generating vocal track (if people detected)</div>
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div id="errorBox" class="error-box hidden"></div>
+
+  <!-- Results -->
+  <div id="resultsSection" class="results-section hidden">
+
+    <!-- Music player -->
+    <div class="result-card">
+      <div class="result-card-header">
+        <div class="result-icon music-icon">🎵</div>
+        <div>
+          <h3>Music Track</h3>
+          <p id="musicSubtitle">Generated from your image</p>
+        </div>
+      </div>
+      <audio id="musicPlayer" controls preload="none"></audio>
+    </div>
+
+    <!-- Voice player (shown only if vocals generated) -->
+    <div class="result-card hidden" id="voiceCard">
+      <div class="result-card-header">
+        <div class="result-icon voice-icon">🎤</div>
+        <div>
+          <h3>Vocal Track</h3>
+          <p id="voiceSubtitle">Lyrics inspired by the people in your image</p>
+        </div>
+      </div>
+      <audio id="voicePlayer" controls preload="none"></audio>
+      <div class="lyrics-box" id="lyricsBox"></div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+  const fileInput = document.getElementById('fileInput');
+  const uploadCard = document.getElementById('uploadCard');
+  const previewSection = document.getElementById('previewSection');
+  const previewImg = document.getElementById('previewImg');
+  const generateBtn = document.getElementById('generateBtn');
+  const loadingSection = document.getElementById('loadingSection');
+  const errorBox = document.getElementById('errorBox');
+  const resultsSection = document.getElementById('resultsSection');
+  const voiceCard = document.getElementById('voiceCard');
+
+  let selectedFile = null;
+  let analysisData = null;
+
+  // Drag and drop
+  uploadCard.addEventListener('dragover', e => { e.preventDefault(); uploadCard.classList.add('drag-over'); });
+  uploadCard.addEventListener('dragleave', () => uploadCard.classList.remove('drag-over'));
+  uploadCard.addEventListener('drop', e => {
+    e.preventDefault();
+    uploadCard.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file);
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) handleFile(fileInput.files[0]);
+  });
+
+  function handleFile(file) {
+    if (!file.type.startsWith('image/')) return showError('Please select an image file.');
+    if (file.size > 10 * 1024 * 1024) return showError('Image exceeds 10 MB.');
+    selectedFile = file;
+    analysisData = null;
+
+    const reader = new FileReader();
+    reader.onload = e => {
+      previewImg.src = e.target.result;
+      previewSection.classList.remove('hidden');
+      resultsSection.classList.add('hidden');
+      errorBox.classList.add('hidden');
+      loadingSection.classList.add('hidden');
+      // Reset analysis display
+      ['aMood','aAtmosphere','aMusicStyle','aScene'].forEach(id => document.getElementById(id).textContent = '—');
+      document.getElementById('aTags').innerHTML = '';
+      generateBtn.textContent = 'Generate Music Track';
+      generateBtn.disabled = false;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  generateBtn.addEventListener('click', async () => {
+    if (!selectedFile) return;
+    generateBtn.disabled = true;
+    loadingSection.classList.remove('hidden');
+    resultsSection.classList.add('hidden');
+    errorBox.classList.add('hidden');
+
+    // Reset steps
+    ['step1','step2','step3','step4'].forEach(id => {
+      const el = document.getElementById(id);
+      el.classList.remove('active','done');
+    });
+
+    setStep('step1', 'active');
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+
+    try {
+      // Simulate step progression while waiting
+      const stepTimer1 = setTimeout(() => { setStep('step1','done'); setStep('step2','active'); }, 1500);
+      const stepTimer2 = setTimeout(() => { setStep('step2','done'); setStep('step3','active'); }, 3000);
+      const stepTimer3 = setTimeout(() => { setStep('step3','done'); setStep('step4','active'); }, 8000);
+
+      const res = await fetch('/generate', { method: 'POST', body: formData });
+      clearTimeout(stepTimer1); clearTimeout(stepTimer2); clearTimeout(stepTimer3);
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Generation failed.');
+      }
+
+      const data = await res.json();
+      analysisData = data.analysis;
+
+      // Mark all done
+      ['step1','step2','step3','step4'].forEach(id => setStep(id, 'done'));
+      setTimeout(() => finishLoading(data), 600);
+
+    } catch (err) {
+      loadingSection.classList.add('hidden');
+      showError(err.message);
+      generateBtn.disabled = false;
+    }
+  });
+
+  function setStep(id, state) {
+    const el = document.getElementById(id);
+    el.classList.remove('active','done');
+    if (state) el.classList.add(state);
+  }
+
+  function finishLoading(data) {
+    loadingSection.classList.add('hidden');
+    generateBtn.disabled = false;
+    generateBtn.textContent = 'Regenerate Track';
+
+    const a = data.analysis;
+
+    // Fill analysis
+    document.getElementById('aMood').textContent = a.mood || '—';
+    document.getElementById('aAtmosphere').textContent = a.atmosphere || '—';
+    document.getElementById('aMusicStyle').textContent = `${a.music_style || ''} · ${a.music_tempo || ''} tempo · ${a.music_energy || ''} energy`;
+    document.getElementById('aScene').textContent = a.scene_description || '';
+
+    const tagsEl = document.getElementById('aTags');
+    tagsEl.innerHTML = '';
+    const allTags = [...(a.objects || []), ...(a.colors || [])];
+    allTags.slice(0, 12).forEach(t => {
+      const span = document.createElement('span');
+      span.className = 'tag';
+      span.textContent = t;
+      tagsEl.appendChild(span);
+    });
+    // Mood tag
+    if (a.mood) {
+      const moodSpan = document.createElement('span');
+      moodSpan.className = 'tag mood-tag';
+      moodSpan.textContent = a.mood;
+      tagsEl.prepend(moodSpan);
+    }
+
+    // Music player
+    document.getElementById('musicPlayer').src = data.music_url;
+    document.getElementById('musicSubtitle').textContent =
+      a.music_style ? `${a.music_style} · ${a.music_instruments?.join(', ') || ''}` : 'Generated from your image';
+
+    // Voice player
+    if (data.voice_url && a.lyrics) {
+      document.getElementById('voicePlayer').src = data.voice_url;
+      document.getElementById('lyricsBox').textContent = a.lyrics;
+      document.getElementById('voiceSubtitle').textContent =
+        `Voice: ${a.suggested_voice_type || 'narrator'} · ${a.people_count || 1} person${(a.people_count || 1) !== 1 ? 's' : ''} detected`;
+      voiceCard.classList.remove('hidden');
+    } else {
+      voiceCard.classList.add('hidden');
+    }
+
+    resultsSection.classList.remove('hidden');
+    resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function showError(msg) {
+    errorBox.textContent = msg;
+    errorBox.classList.remove('hidden');
+  }
+</script>
+</body>
+</html>
