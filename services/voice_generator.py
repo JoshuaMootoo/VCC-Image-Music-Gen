@@ -6,7 +6,10 @@ from elevenlabs.types import MusicPrompt, SongSection
 def generate_song(lyrics: str, voice_type: str, music_style: str, music_instruments: list) -> bytes:
     client = ElevenLabs(api_key=os.environ["ELEVENLABS_API_KEY"])
 
-    lines = [l.strip() for l in lyrics.strip().splitlines() if l.strip()]
+    if isinstance(lyrics, list):
+        lines = [l.strip() for l in lyrics if str(l).strip()]
+    else:
+        lines = [l.strip() for l in lyrics.strip().splitlines() if l.strip()]
 
     voice_styles = {
         "soprano":       ["bright female vocal", "soprano"],
